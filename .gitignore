@@ -1,0 +1,6 @@
+node_modules/
+package-lock.json
+package.json
+obfuscate_build.js
+
+patch_security.js
