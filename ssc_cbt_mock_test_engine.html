@@ -1416,9 +1416,52 @@
       }
     }
 
+    /* STRICT CONTENT INTEGRITY & ANTI-STEAL PROTECTION */
+    *, *::before, *::after {
+      -webkit-user-select: none !important;
+      -moz-user-select: none !important;
+      -ms-user-select: none !important;
+      user-select: none !important;
+      -webkit-touch-callout: none !important;
+    }
+
+    @media print {
+      html, body {
+        display: none !important;
+        visibility: hidden !important;
+      }
+    }
+
+    #quizlauncher-devtools-shield {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.96);
+      backdrop-filter: blur(8px);
+      z-index: 99999999;
+      color: #ffffff;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
   </style>
 </head>
-<body oncontextmenu="return false;">
+<body oncontextmenu="return false;" onselectstart="return false;" ondragstart="return false;">
+
+  <!-- DEVTOOLS PROTECTION SHIELD OVERLAY -->
+  <div id="quizlauncher-devtools-shield">
+    <div style="background:#1e293b; border:2px solid #ef4444; border-radius:14px; padding:32px 28px; max-width:440px; text-align:center; box-shadow:0 25px 50px -12px rgba(0,0,0,0.65);">
+      <div style="font-size:46px; margin-bottom:12px;">🛡️</div>
+      <h2 style="color:#ef4444; font-size:22px; font-weight:700; margin-bottom:12px;">Security Alert</h2>
+      <p style="color:#94a3b8; font-size:14px; line-height:1.6; margin-bottom:16px;">
+        Developer Tools and inspection are disabled on <strong>QuizLauncher</strong> to protect test content and integrity.
+      </p>
+      <div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.25); color:#fca5a5; font-size:13px; padding:10px 14px; border-radius:8px; font-weight:500;">
+        Please close DevTools / Inspect window to continue.
+      </div>
+    </div>
+  </div>
 
   <!-- ANTI-TAMPER MONITOR LAYER & WATERMARKS -->
   <div id="quizlauncher-security-layer">
@@ -2844,6 +2887,111 @@
 
       alert("Entered Solution Review Mode!\n✓ All sections unlocked (switch freely)\n✓ Timer removed\n✓ Answers highlighted (Green: Correct, Red: Wrong).");
     }
+  </script>
+
+  <!-- QUIZLAUNCHER CONTENT DEFENSE & ANTI-DEVTOOLS SYSTEM -->
+  <script>
+    (function () {
+      'use strict';
+
+      // 1. BLOCK CONTEXT MENU (RIGHT CLICK)
+      document.addEventListener('contextmenu', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }, { capture: true });
+
+      // 2. BLOCK SELECT, DRAG, COPY, CUT, PASTE
+      ['selectstart', 'dragstart', 'copy', 'cut', 'paste'].forEach(function (evt) {
+        document.addEventListener(evt, function (e) {
+          if (e.clipboardData && (evt === 'copy' || evt === 'cut')) {
+            e.clipboardData.setData('text/plain', '');
+          }
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }, { capture: true });
+      });
+
+      // 3. BLOCK DEVTOOLS SHORTCUTS & SYSTEM KEYS (F12, Ctrl+U, Ctrl+Shift+I/J/C, Ctrl+S, Ctrl+P, Ctrl+A, Ctrl+C)
+      window.addEventListener('keydown', function (e) {
+        const key = e.key || '';
+        const keyCode = e.keyCode || e.which;
+        const ctrlOrMeta = e.ctrlKey || e.metaKey;
+
+        // F12
+        if (key === 'F12' || keyCode === 123) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+
+        // Ctrl / Cmd + Shift + (I, J, C, K)
+        if (ctrlOrMeta && e.shiftKey) {
+          const upperKey = (key || '').toUpperCase();
+          if (['I', 'J', 'C', 'K'].includes(upperKey) || [73, 74, 67, 75].includes(keyCode)) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+        }
+
+        // Ctrl / Cmd + (U, S, P, A, C, X)
+        if (ctrlOrMeta) {
+          const lowerKey = (key || '').toLowerCase();
+          if (['u', 's', 'p', 'a', 'c', 'x'].includes(lowerKey) || [85, 83, 80, 65, 67, 88].includes(keyCode)) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+        }
+      }, { capture: true });
+
+      // 4. MUTE CONSOLE LOGGING & AUTO CLEAR
+      try {
+        const noop = function () {};
+        ['log', 'debug', 'info', 'warn', 'error', 'table', 'dir', 'trace'].forEach(function (method) {
+          if (window.console && window.console[method]) {
+            window.console[method] = noop;
+          }
+        });
+        setInterval(function () {
+          try { window.console.clear(); } catch (_) {}
+        }, 2000);
+      } catch (_) {}
+
+      // 5. DETECT DEVTOOLS (DOCK / WINDOW & DEBUGGER LATENCY)
+      const shield = document.getElementById('quizlauncher-devtools-shield');
+
+      function verifyInspectState() {
+        const widthThreshold = window.outerWidth - window.innerWidth > 160;
+        const heightThreshold = window.outerHeight - window.innerHeight > 160;
+        if (widthThreshold || heightThreshold) {
+          if (shield) shield.style.display = 'flex';
+        } else {
+          if (shield && shield.getAttribute('data-locked') !== 'true') {
+            shield.style.display = 'none';
+          }
+        }
+      }
+
+      window.addEventListener('resize', verifyInspectState);
+      setInterval(verifyInspectState, 1000);
+
+      // Debugger detection test
+      setInterval(function () {
+        const start = performance.now();
+        debugger;
+        const diff = performance.now() - start;
+        if (diff > 100) {
+          if (shield) {
+            shield.setAttribute('data-locked', 'true');
+            shield.style.display = 'flex';
+          }
+        }
+      }, 1500);
+
+    })();
   </script>
 </body>
 </html>
