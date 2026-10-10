@@ -4,3 +4,4 @@ package.json
 obfuscate_build.js
 patch_security.js
 source_index.html
+scratch/
